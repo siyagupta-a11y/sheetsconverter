@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sheets → Excel Converter</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="site-header">
+      <div class="header-inner">
+        <div class="brand">
+          <span class="brand-icon">⚡</span>
+          <span class="brand-name">Sheets → Excel</span>
+        </div>
+        <div id="header-auth"></div>
+      </div>
+    </header>
+
+    <main class="main">
+      <!-- Hero -->
+      <section class="hero">
+        <h1>Convert Google Sheets to Excel</h1>
+        <p>Cell by cell, sheet by sheet — all formulas converted to Excel-compatible syntax. Download a ready-to-use <code>.xlsx</code> file.</p>
+      </section>
+
+      <!-- Auth card -->
+      <div id="auth-card" class="card" style="display:none">
+        <div class="card-body center">
+          <div class="icon-circle">🔑</div>
+          <h2>Connect your Google Account</h2>
+          <p class="muted">Required to access private spreadsheets. Only read-only access is requested.</p>
+          <a id="signin-btn" href="/api/auth/login" class="btn btn-google">
+            <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+              <path d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908C16.658 14.082 17.64 11.775 17.64 9.205z" fill="#4285F4"/>
+              <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853"/>
+              <path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+              <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+            </svg>
+            Sign in with Google
+          </a>
+        </div>
+      </div>
+
+      <!-- Converter card -->
+      <div id="converter-card" class="card" style="display:none">
+        <div class="card-body">
+          <h2>Paste your spreadsheet URL</h2>
+          <div class="input-row">
+            <input
+              type="text"
+              id="sheet-url"
+              class="url-input"
+              placeholder="https://docs.google.com/spreadsheets/d/…"
+              onkeydown="if(event.key==='Enter') startConversion()"
+            />
+            <button class="btn btn-primary" onclick="startConversion()" id="convert-btn">
+              Convert
+            </button>
+          </div>
+          <div class="options-grid">
+            <label class="option-field">
+              <span>Profile</span>
+              <select id="profile-mode">
+                <option value="balanced">Balanced</option>
+                <option value="financial">Financial</option>
+              </select>
+            </label>
+            <label class="option-field">
+              <span>Strict policy</span>
+              <select id="strict-policy">
+                <option value="off">Off</option>
+                <option value="all">All warnings</option>
+                <option value="unsupported">Unsupported only</option>
+                <option value="financial">Financial strict</option>
+              </select>
+            </label>
+            <label class="option-field">
+              <span>Build mode</span>
+              <select id="build-mode">
+                <option value="internal">Internal builder</option>
+                <option value="native_patch">Native export + formula patch</option>
+              </select>
+            </label>
+          </div>
+          <label class="strict-option">
+            <input type="checkbox" id="strict-mode" />
+            <span>Legacy strict toggle (maps to “All warnings”)</span>
+          </label>
+          <label class="strict-option">
+            <input type="checkbox" id="compare-values" checked />
+            <span>Compare formula values (Google vs Excel)</span>
+          </label>
+          <label class="strict-option">
+            <input type="checkbox" id="highlight-mismatches" checked />
+            <span>Highlight mismatched cells in output workbook</span>
+          </label>
+          <label class="option-field option-field-full">
+            <span>Critical cells (comma or newline, e.g. <code>Output!F42</code>)</span>
+            <textarea id="critical-cells" rows="3" placeholder="IRR!B12, Debt!E44, Cashflow!H23"></textarea>
+          </label>
+          <p class="hint">The sheet must be owned by or shared with your signed-in account.</p>
+        </div>
+      </div>
+
+      <!-- Progress card -->
+      <div id="progress-card" class="card" style="display:none">
+        <div class="card-body center">
+          <div class="spinner"></div>
+          <p id="progress-msg" class="progress-msg">Reading spreadsheet…</p>
+        </div>
+      </div>
+
+      <!-- Results card -->
+      <div id="results-card" class="card" style="display:none">
+        <div class="card-body">
+          <div class="result-header">
+            <div class="result-icon success">✓</div>
+            <div>
+              <h2 id="result-title">Conversion complete</h2>
+              <p id="result-subtitle" class="muted"></p>
+            </div>
+          </div>
+
+          <button class="btn btn-primary btn-large" onclick="downloadFile()" id="download-btn">
+            ↓ Download Excel File
+          </button>
+
+          <div id="build-block" class="card-subtle" style="display:none"></div>
+
+          <div id="risk-block" class="card-subtle" style="display:none">
+            <h3>Model risk report</h3>
+            <p id="risk-summary" class="muted small"></p>
+          </div>
+
+          <div id="parity-block" class="card-subtle" style="display:none">
+            <h3>Critical-cell parity report</h3>
+            <p id="parity-summary" class="muted small"></p>
+            <div id="parity-list" class="warnings-list"></div>
+          </div>
+
+          <div id="value-parity-block" class="card-subtle" style="display:none">
+            <h3>Workbook value mismatches</h3>
+            <p id="value-parity-summary" class="muted small"></p>
+            <div id="value-parity-list" class="warnings-list"></div>
+          </div>
+
+          <div id="warnings-block" style="display:none" class="warnings-block">
+            <div class="warnings-header">
+              <h3>Conversion notes <span id="warn-badge" class="badge"></span></h3>
+              <p class="muted small">A "⚠ Conversion Notes" sheet is included in the Excel file with all details.</p>
+            </div>
+            <div id="warnings-list" class="warnings-list"></div>
+          </div>
+
+          <button class="btn btn-ghost" onclick="resetApp()">Convert another sheet</button>
+        </div>
+      </div>
+
+      <!-- Error card -->
+      <div id="error-card" class="card" style="display:none">
+        <div class="card-body center">
+          <div class="result-icon error">✗</div>
+          <h2>Something went wrong</h2>
+          <p id="error-msg" class="muted"></p>
+          <button class="btn btn-ghost" onclick="resetApp()">Try again</button>
+        </div>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <p>Converts formulas for Excel 365. Functions with no Excel equivalent (GOOGLEFINANCE, IMPORTRANGE, QUERY, etc.) are flagged in the output file.</p>
+    </footer>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
