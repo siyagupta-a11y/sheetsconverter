@@ -1,5 +1,6 @@
 import os
 from typing import Optional
+from urllib.parse import urlparse
 from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse, JSONResponse
 from google_auth_oauthlib.flow import Flow
@@ -17,7 +18,16 @@ SCOPES = [
 def _get_redirect_uri(request: Request) -> str:
     configured = os.getenv("GOOGLE_REDIRECT_URI")
     if configured:
-        return configured
+        try:
+            configured_host = (urlparse(configured).netloc or "").lower()
+            request_host = (request.headers.get("host") or "").lower()
+            # If a fixed redirect host is configured but does not match the current
+            # request host (e.g. custom domain vs *.vercel.app), prefer dynamic host.
+            if configured_host and request_host and configured_host == request_host:
+                return configured
+        except Exception:
+            # Fall back to dynamic URI generation.
+            pass
     base = str(request.base_url).rstrip("/")
     return f"{base}/api/auth/callback"
 
