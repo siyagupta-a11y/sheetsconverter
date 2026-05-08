@@ -46,28 +46,42 @@ def _make_flow(redirect_uri: str) -> Flow:
 
 
 def _creds_to_dict(creds: Credentials) -> dict:
-    return {
-        "token": creds.token,
-        "refresh_token": creds.refresh_token,
-        "token_uri": creds.token_uri,
-        "client_id": creds.client_id,
-        "client_secret": creds.client_secret,
+    # SessionMiddleware stores data in signed cookies; keep payload minimal.
+    # Prefer refresh-token based reconstruction to avoid oversized cookies.
+    data = {
+        "token_uri": creds.token_uri or "https://oauth2.googleapis.com/token",
         "scopes": list(creds.scopes) if creds.scopes else SCOPES,
     }
+    if creds.refresh_token:
+        data["refresh_token"] = creds.refresh_token
+    else:
+        # Fallback if refresh token is unavailable.
+        data["token"] = creds.token
+    return data
 
 
 def get_credentials(request: Request) -> Optional[Credentials]:
     data = request.session.get("credentials")
     if not data:
         return None
-    creds = Credentials(**data)
-    if creds.expired and creds.refresh_token:
+    creds = Credentials(
+        token=data.get("token"),
+        refresh_token=data.get("refresh_token"),
+        token_uri=data.get("token_uri") or "https://oauth2.googleapis.com/token",
+        client_id=os.getenv("GOOGLE_CLIENT_ID"),
+        client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
+        scopes=data.get("scopes") or SCOPES,
+    )
+    # If we have a refresh token, always ensure a fresh access token.
+    if creds.refresh_token and (not creds.token or creds.expired):
         try:
             creds.refresh(GoogleRequest())
             request.session["credentials"] = _creds_to_dict(creds)
         except Exception:
             request.session.pop("credentials", None)
             return None
+    elif not creds.token:
+        return None
     return creds
 
 
