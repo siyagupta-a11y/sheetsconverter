@@ -1,6 +1,7 @@
 import os
 from typing import Optional
 from urllib.parse import urlparse
+from urllib.parse import quote
 from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse, JSONResponse
 from google_auth_oauthlib.flow import Flow
@@ -114,7 +115,8 @@ async def callback(request: Request, code: str = None, state: str = None, error:
     try:
         flow.fetch_token(code=code)
     except Exception as e:
-        return RedirectResponse(f"/?auth_error=token_exchange_failed")
+        detail = str(e)[:220] if e else "unknown"
+        return RedirectResponse(f"/?auth_error=token_exchange_failed:{quote(detail)}")
 
     creds = flow.credentials
     request.session["credentials"] = _creds_to_dict(creds)
