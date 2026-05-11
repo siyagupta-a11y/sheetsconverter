@@ -148,6 +148,8 @@ def _convert_join(formula: str) -> tuple:
     parts = []
     pos = 0
     for m in pattern.finditer(formula):
+        if m.start() < pos:
+            continue
         parts.append(formula[pos:m.start()])
         open_p = m.end() - 1
         comma1 = _find_nth_comma(formula, open_p, 1)
@@ -213,6 +215,8 @@ def _convert_split(formula: str) -> tuple:
     parts = []
     pos = 0
     for m in pattern.finditer(formula):
+        if m.start() < pos:
+            continue
         parts.append(formula[pos:m.start()])
         open_p = m.end() - 1
         close_p = _find_matching_paren(formula, open_p)
@@ -266,6 +270,8 @@ def _convert_countunique(formula: str) -> tuple:
     parts = []
     pos = 0
     for m in pattern.finditer(formula):
+        if m.start() < pos:
+            continue
         parts.append(formula[pos:m.start()])
         open_p = m.end() - 1
         close_p = _find_matching_paren(formula, open_p)
@@ -584,33 +590,105 @@ def _convert_iferror(formula: str) -> tuple:
 
 def _convert_index_defaults(formula: str) -> tuple:
     """
-    Preserve INDEX argument shape to avoid semantic drift in financial models.
-    Older behavior rewrote omitted row/column to explicit 0, which can introduce
-    #REF! / spill behavior changes depending on workbook layout and engine rules.
-    We now keep formulas unchanged and only emit a compatibility warning for
-    explicitly omitted-position cases (",," or trailing comma).
+    Normalize INDEX for Sheets-vs-Excel argument semantics.
+
+    Key drift we handle:
+    - Sheets models often use INDEX(ref, n) against a horizontal/single-row ref
+      (treating n as column offset). In Excel this is interpreted as row_num and
+      can return #REF! when n > 1.
+    - For references that look like single-row ranges, rewrite:
+        INDEX(ref, n) -> INDEX(ref, 1, n)
+
+    For omitted-position cases (",," or trailing comma), keep unchanged and warn.
     """
     warnings = []
     pattern = re.compile(r'\bINDEX\s*\(', re.IGNORECASE)
     if not pattern.search(formula):
         return formula, warnings
 
+    def _looks_like_single_row_ref(ref_arg: str) -> bool:
+        s = ref_arg.strip()
+
+        # Explicit row-range references, e.g. 9:9 or Sheet!9:9.
+        if re.search(r'(^|[^A-Za-z0-9_])\$?\d+\s*:\s*\$?\d+($|[^A-Za-z0-9_])', s):
+            return True
+
+        # Dynamic right-bound built from a row-range INDEX(..., 9:9, ...).
+        if re.search(r':\s*INDEX\([^)]*\$?\d+\s*:\s*\$?\d+', s, re.IGNORECASE):
+            return True
+
+        # Simple A1-style one-row ranges, e.g. B9:J9 or 'P&L'!$B$9:$J$9.
+        m = re.match(
+            r"^(?:'[^']+'!|[\w\\.]+!)?\$?[A-Za-z]{1,3}\$?(\d+)\s*:\s*"
+            r"(?:'[^']+'!|[\w\\.]+!)?\$?[A-Za-z]{1,3}\$?(\d+)$",
+            s,
+        )
+        if m and m.group(1) == m.group(2):
+            return True
+
+        return False
+
+    def _looks_like_single_col_ref(ref_arg: str) -> bool:
+        s = ref_arg.strip()
+
+        # Explicit column-range references, e.g. B:B or Sheet!$B:$B.
+        if re.search(r'(^|[^A-Za-z0-9_])\$?[A-Za-z]{1,3}\s*:\s*\$?[A-Za-z]{1,3}($|[^A-Za-z0-9_])', s):
+            return True
+
+        # Simple A1-style one-column ranges, e.g. B2:B100.
+        m = re.match(
+            r"^(?:'[^']+'!|[\w\\.]+!)?\$?([A-Za-z]{1,3})\$?\d*\s*:\s*"
+            r"(?:'[^']+'!|[\w\\.]+!)?\$?([A-Za-z]{1,3})\$?\d*$",
+            s,
+        )
+        if m and m.group(1).upper() == m.group(2).upper():
+            return True
+
+        return False
+    parts = []
+    pos = 0
     for m in pattern.finditer(formula):
+        if m.start() < pos:
+            continue
+        parts.append(formula[pos:m.start()])
         open_p = m.end() - 1
         close_p = _find_matching_paren(formula, open_p)
         if close_p == -1:
+            parts.append(formula[m.start():])
+            pos = len(formula)
             continue
-        args = _split_top_level_args(formula, open_p)
-        if len(args) >= 2 and args[1].strip() == '':
-            warnings.append(
-                "INDEX: omitted row argument detected; kept unchanged to preserve Sheets behavior"
-            )
-        if len(args) >= 3 and args[2].strip() == '':
-            warnings.append(
-                "INDEX: omitted column argument detected; kept unchanged to preserve Sheets behavior"
-            )
 
-    return formula, warnings
+        args = _split_top_level_args(formula, open_p)
+        if len(args) == 2:
+            ref = args[0].strip()
+            idx = args[1].strip()
+            if _looks_like_single_row_ref(ref):
+                parts.append(f'INDEX({ref}, 1, {idx})')
+                warnings.append(
+                    "INDEX: two-arg call over single-row reference rewritten to INDEX(ref,1,col)"
+                )
+            elif _looks_like_single_col_ref(ref):
+                parts.append(formula[m.start():close_p + 1])
+            else:
+                parts.append(formula[m.start():close_p + 1])
+                warnings.append(
+                    "INDEX: two-arg call left unchanged (reference orientation ambiguous)"
+                )
+        else:
+            if len(args) >= 2 and args[1].strip() == '':
+                warnings.append(
+                    "INDEX: omitted row argument detected; kept unchanged to preserve Sheets behavior"
+                )
+            if len(args) >= 3 and args[2].strip() == '':
+                warnings.append(
+                    "INDEX: omitted column argument detected; kept unchanged to preserve Sheets behavior"
+                )
+            parts.append(formula[m.start():close_p + 1])
+
+        pos = close_p + 1
+
+    parts.append(formula[pos:])
+    return ''.join(parts), warnings
 
 
 def _warn_lookup_defaults(formula: str) -> tuple:

@@ -35,6 +35,19 @@ class FormulaConverterTests(unittest.TestCase):
         self.assertEqual(res.formula, "=INDEX(A:C,4,)")
         self.assertIn("INDEX: omitted column argument detected", " | ".join(res.warnings))
 
+    def test_index_two_arg_single_row_rewritten_to_three_args(self):
+        formula = (
+            "=SUM(INDEX('P&L'!$B9:INDEX('P&L'!9:9, COUNTA('P&L'!$C$3:Z$3)+2), (COLUMNS($B$3:M$3)-1)*3+1):"
+            "INDEX('P&L'!$B9:INDEX('P&L'!9:9, COUNTA('P&L'!$C$3:Z$3)+2),MIN((COLUMNS($B$3:M$3)-1)*3+3, COUNTA('P&L'!$C$3:Z$3))))"
+        )
+        res = convert_formula(formula)
+        self.assertIn(
+            "INDEX('P&L'!$B9:INDEX('P&L'!9:9, COUNTA('P&L'!$C$3:Z$3)+2), 1, (COLUMNS($B$3:M$3)-1)*3+1)",
+            res.formula,
+        )
+        self.assertNotIn(")INDEX(", res.formula)
+        self.assertIn("single-row reference rewritten", " | ".join(res.warnings))
+
     def test_filter_single_condition_adds_if_empty_na(self):
         res = convert_formula("=FILTER(A2:A10,B2:B10>0)")
         self.assertEqual(res.formula, "=FILTER(A2:A10, B2:B10>0, NA())")
