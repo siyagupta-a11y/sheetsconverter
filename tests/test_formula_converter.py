@@ -42,7 +42,11 @@ class FormulaConverterTests(unittest.TestCase):
         )
         res = convert_formula(formula)
         self.assertIn(
-            "INDEX('P&L'!$B9:INDEX('P&L'!9:9, COUNTA('P&L'!$C$3:Z$3)+2), 1, (COLUMNS($B$3:M$3)-1)*3+1)",
+            "INDEX('P&L'!$B9:INDEX('P&L'!9:9, 1, COUNTA('P&L'!$C$3:Z$3)+2), 1, (COLUMNS($B$3:M$3)-1)*3+1)",
+            res.formula,
+        )
+        self.assertIn(
+            "INDEX('P&L'!9:9, 1, COUNTA('P&L'!$C$3:Z$3)+2)",
             res.formula,
         )
         self.assertNotIn(")INDEX(", res.formula)

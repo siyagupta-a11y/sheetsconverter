@@ -662,6 +662,15 @@ def _convert_index_defaults(formula: str) -> tuple:
         if len(args) == 2:
             ref = args[0].strip()
             idx = args[1].strip()
+
+            # Recursively normalize nested INDEX calls inside arguments first.
+            ref_conv, ref_w = _convert_index_defaults(ref)
+            idx_conv, idx_w = _convert_index_defaults(idx)
+            warnings.extend(ref_w)
+            warnings.extend(idx_w)
+            ref = ref_conv
+            idx = idx_conv
+
             if _looks_like_single_row_ref(ref):
                 parts.append(f'INDEX({ref}, 1, {idx})')
                 warnings.append(
