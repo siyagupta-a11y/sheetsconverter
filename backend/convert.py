@@ -1,6 +1,6 @@
 import base64
 import re
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request, HTTPException, UploadFile, File
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -21,6 +21,7 @@ from value_compare import (
     compare_formula_values,
     apply_mismatch_highlights,
 )
+from excel_formula_patcher import patch_uploaded_workbook
 
 router = APIRouter()
 
@@ -62,6 +63,37 @@ class ConvertRequest(BaseModel):
     critical_cells: list[str] = []
     compare_values: bool = True
     highlight_mismatches: bool = True
+
+
+@router.post("/convert-file")
+async def convert_file(file: UploadFile = File(...)):
+    filename = file.filename or "uploaded.xlsx"
+    if not filename.lower().endswith(".xlsx"):
+        raise HTTPException(status_code=400, detail="Please upload a .xlsx file.")
+
+    file_bytes = await file.read()
+    if not file_bytes:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+
+    try:
+        converted_bytes, warnings = patch_uploaded_workbook(file_bytes)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to process workbook: {e}")
+
+    base_name = re.sub(r"\.xlsx$", "", filename, flags=re.IGNORECASE)
+    safe_name = re.sub(r"[^\w\s-]", "", base_name).strip().replace(" ", "_") or "converted"
+    out_name = f"{safe_name}_patched.xlsx"
+
+    return JSONResponse(
+        {
+            "title": filename,
+            "mode": "file_upload",
+            "warnings": warnings,
+            "warning_count": len(warnings),
+            "file_b64": base64.b64encode(converted_bytes).decode(),
+            "filename": out_name,
+        }
+    )
 
 
 @router.post("/convert")

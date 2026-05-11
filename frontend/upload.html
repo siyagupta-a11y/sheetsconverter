@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Excel Patch Converter</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="site-header">
+      <div class="header-inner">
+        <div class="brand">
+          <span class="brand-icon">🧩</span>
+          <span class="brand-name">Excel Formula Patcher</span>
+        </div>
+        <a href="/" class="btn btn-ghost btn-sm">Back to Sheets Mode</a>
+      </div>
+    </header>
+
+    <main class="main">
+      <section class="hero">
+        <h1>Upload Excel, Patch Formulas</h1>
+        <p>Export your Google Sheet as <code>.xlsx</code>, upload it here, and get a patched workbook with compatibility notes.</p>
+      </section>
+
+      <div id="uploader-card" class="card">
+        <div class="card-body">
+          <h2>Select an Excel file</h2>
+          <div class="input-row">
+            <input type="file" id="xlsx-file" accept=".xlsx" class="url-input" />
+            <button class="btn btn-primary" onclick="startUploadConversion()">Convert</button>
+          </div>
+          <p class="hint">Only <code>.xlsx</code> files are supported.</p>
+        </div>
+      </div>
+
+      <div id="progress-card" class="card" style="display:none">
+        <div class="card-body center">
+          <div class="spinner"></div>
+          <p id="progress-msg" class="progress-msg">Processing workbook…</p>
+        </div>
+      </div>
+
+      <div id="results-card" class="card" style="display:none">
+        <div class="card-body">
+          <div class="result-header">
+            <div class="result-icon success">✓</div>
+            <div>
+              <h2 id="result-title">Conversion complete</h2>
+              <p id="result-subtitle" class="muted"></p>
+            </div>
+          </div>
+
+          <button class="btn btn-primary btn-large" onclick="downloadFile()">
+            ↓ Download Patched Excel File
+          </button>
+
+          <div id="warnings-block" style="display:none" class="warnings-block">
+            <div class="warnings-header">
+              <h3>Conversion notes <span id="warn-badge" class="badge"></span></h3>
+              <p class="muted small">A "⚠ Conversion Notes" sheet is included in the output workbook.</p>
+            </div>
+            <div id="warnings-list" class="warnings-list"></div>
+          </div>
+
+          <button class="btn btn-ghost" onclick="resetUploadPage()">Patch another file</button>
+        </div>
+      </div>
+
+      <div id="error-card" class="card" style="display:none">
+        <div class="card-body center">
+          <div class="result-icon error">✗</div>
+          <h2>Something went wrong</h2>
+          <p id="error-msg" class="muted"></p>
+          <button class="btn btn-ghost" onclick="resetUploadPage()">Try again</button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/upload.js"></script>
+</body>
+</html>

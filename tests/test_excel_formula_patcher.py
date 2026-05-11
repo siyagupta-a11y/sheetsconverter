@@ -1,0 +1,40 @@
+import sys
+import unittest
+from pathlib import Path
+
+try:
+    from openpyxl import Workbook, load_workbook
+    HAS_OPENPYXL = True
+except Exception:
+    HAS_OPENPYXL = False
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
+
+from excel_formula_patcher import patch_uploaded_workbook
+
+
+@unittest.skipUnless(HAS_OPENPYXL, "openpyxl not available in local test environment")
+class ExcelFormulaPatcherTests(unittest.TestCase):
+    def test_patch_uploaded_workbook_rewrites_formula_and_adds_notes(self):
+        from io import BytesIO
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Model"
+        ws["A1"] = '=IFERROR(1/0)'
+        ws["B1"] = '=QUERY(A1:A5,"select A")'
+
+        buf = BytesIO()
+        wb.save(buf)
+
+        out_bytes, warnings = patch_uploaded_workbook(buf.getvalue())
+        wb2 = load_workbook(BytesIO(out_bytes))
+
+        self.assertEqual(wb2["Model"]["A1"].value, '=IFERROR(1/0, "")')
+        self.assertEqual(wb2["Model"]["B1"].value, '=QUERY(A1:A5,"select A")')
+        self.assertTrue(any(w.get("has_unsupported") for w in warnings))
+        self.assertIn("⚠ Conversion Notes", wb2.sheetnames)
+
+
+if __name__ == "__main__":
+    unittest.main()
