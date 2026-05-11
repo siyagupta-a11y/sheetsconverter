@@ -12,6 +12,13 @@ async function startUploadConversion() {
     showError("Only .xlsx files are supported.");
     return;
   }
+  // Vercel Functions have a 4.5 MB request/response payload limit.
+  // Because this API currently returns base64 JSON, keep a conservative client-side cap.
+  const MAX_UPLOAD_BYTES = 3.2 * 1024 * 1024;
+  if (file.size > MAX_UPLOAD_BYTES) {
+    showError("File is too large for hosted upload mode (>3.2 MB). Use a smaller workbook or run locally.");
+    return;
+  }
 
   hideAll();
   show("progress-card");
@@ -25,8 +32,22 @@ async function startUploadConversion() {
     });
 
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Unknown error" }));
-      throw new Error(err.detail || `Server error ${res.status}`);
+      const raw = await res.text().catch(() => "");
+      let detail = "";
+      try {
+        const parsed = raw ? JSON.parse(raw) : {};
+        detail = parsed.detail || parsed.message || "";
+      } catch {
+        detail = raw;
+      }
+
+      if (res.status === 413) {
+        throw new Error("Upload too large for Vercel Function payload limits (413). Try a smaller file or run locally.");
+      }
+      if (!detail) {
+        throw new Error(`Server error ${res.status}`);
+      }
+      throw new Error(`Server error ${res.status}: ${detail.slice(0, 260)}`);
     }
     const data = await res.json();
 
