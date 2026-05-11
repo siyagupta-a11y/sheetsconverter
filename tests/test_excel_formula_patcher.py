@@ -26,7 +26,7 @@ class ExcelFormulaHelpersTests(unittest.TestCase):
 
     def test_restore_formula(self):
         self.assertEqual(_restore_formula("=A1", "normal"), "=A1")
-        self.assertEqual(_restore_formula("=A1", "array"), "{=A1}")
+        self.assertEqual(_restore_formula("=A1", "array"), "=A1")
 
 
 @unittest.skipUnless(HAS_OPENPYXL, "openpyxl not available in local test environment")

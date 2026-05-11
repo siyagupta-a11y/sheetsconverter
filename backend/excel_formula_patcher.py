@@ -21,8 +21,9 @@ def _extract_formula(value: str):
 
 
 def _restore_formula(formula: str, kind: str):
-    if kind == "array":
-        return "{" + formula + "}"
+    # Never write brace-wrapped strings back into cell.value. Excel stores
+    # formulas as "=..." and handles array semantics separately.
+    # Writing "{=...}" as text can trigger #NAME? in output workbooks.
     return formula
 
 
