@@ -13,9 +13,13 @@ async function startUploadConversion() {
     return;
   }
   // Vercel Functions have a 4.5 MB request/response payload limit.
-  // Because this API currently returns base64 JSON, keep a conservative client-side cap.
+  // Because this API currently returns base64 JSON, keep a conservative
+  // client-side cap in hosted mode only (no cap on localhost).
+  const isLocal =
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1";
   const MAX_UPLOAD_BYTES = 3.2 * 1024 * 1024;
-  if (file.size > MAX_UPLOAD_BYTES) {
+  if (!isLocal && file.size > MAX_UPLOAD_BYTES) {
     showError("File is too large for hosted upload mode (>3.2 MB). Use a smaller workbook or run locally.");
     return;
   }
