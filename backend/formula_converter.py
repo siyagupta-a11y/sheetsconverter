@@ -552,6 +552,29 @@ def _convert_to_text(formula: str) -> tuple:
     return formula, warnings
 
 
+def _strip_implicit_intersection_prefix(formula: str) -> tuple:
+    """
+    Remove explicit implicit-intersection prefixes like @IF(...).
+    These can appear in modern Excel displays but are not needed for scalar
+    functions and can trigger #NAME? in some interoperability scenarios.
+    """
+    warnings = []
+    pattern = re.compile(r'@([A-Za-z_][A-Za-z0-9_]*)\s*\(')
+    if not pattern.search(formula):
+        return formula, warnings
+
+    removed = 0
+    def repl(m):
+        nonlocal removed
+        removed += 1
+        return f'{m.group(1)}('
+
+    out = pattern.sub(repl, formula)
+    if removed:
+        warnings.append("Removed @ implicit-intersection prefixes for compatibility")
+    return out, warnings
+
+
 def _convert_iferror(formula: str) -> tuple:
     """
     Google Sheets: IFERROR(value) defaults value_if_error to blank.
@@ -752,6 +775,7 @@ def convert_formula(formula: str) -> ConversionResult:
     for converter in [
         _convert_arrayformula,
         _convert_array_constrain,
+        _strip_implicit_intersection_prefix,
         _convert_iferror,
         _convert_join,
         _convert_split,

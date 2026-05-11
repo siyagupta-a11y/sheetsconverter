@@ -92,6 +92,18 @@ class FormulaConverterTests(unittest.TestCase):
         self.assertEqual(res2.formula, "=MATCH(A1,B:B)")
         self.assertIn("MATCH: default match_type is implicit", " | ".join(res2.warnings))
 
+    def test_at_prefixed_if_is_normalized(self):
+        formula = (
+            "=IF(OR(A1=1,B1=2),0,(@IF(C1>0,SWITCH(YEAR(D1),2025,E1,2026,F1),0)+IF(G1>0,H1,0))/12)"
+        )
+        res = convert_formula(formula)
+        self.assertNotIn("@IF(", res.formula)
+        self.assertIn("(IF(C1>0", res.formula)
+        self.assertIn(
+            "Removed @ implicit-intersection prefixes for compatibility",
+            " | ".join(res.warnings),
+        )
+
     def test_unsupported_function_is_flagged_and_left_intact(self):
         res = convert_formula('=QUERY(A1:B10,"select A")')
         self.assertEqual(res.formula, '=QUERY(A1:B10,"select A")')
