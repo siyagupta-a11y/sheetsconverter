@@ -10,6 +10,10 @@ from google.auth.transport.requests import Request as GoogleRequest
 
 router = APIRouter()
 
+# Google may return token scopes in a slightly different set/order
+# (e.g. including userinfo scopes). Relax strict oauthlib scope validation.
+os.environ.setdefault("OAUTHLIB_RELAX_TOKEN_SCOPE", "1")
+
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets.readonly",
     "https://www.googleapis.com/auth/drive.readonly",
@@ -93,7 +97,6 @@ async def login(request: Request):
     auth_url, state = flow.authorization_url(
         access_type="offline",
         prompt="consent",
-        include_granted_scopes="true",
     )
     request.session["oauth_state"] = state
     request.session["oauth_redirect_uri"] = redirect_uri
