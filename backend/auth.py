@@ -97,6 +97,8 @@ async def login(request: Request):
     )
     request.session["oauth_state"] = state
     request.session["oauth_redirect_uri"] = redirect_uri
+    if getattr(flow, "code_verifier", None):
+        request.session["oauth_code_verifier"] = flow.code_verifier
     return RedirectResponse(auth_url)
 
 
@@ -111,6 +113,9 @@ async def callback(request: Request, code: str = None, state: str = None, error:
 
     redirect_uri = request.session.get("oauth_redirect_uri", _get_redirect_uri(request))
     flow = _make_flow(redirect_uri)
+    stored_verifier = request.session.get("oauth_code_verifier")
+    if stored_verifier:
+        flow.code_verifier = stored_verifier
 
     try:
         flow.fetch_token(code=code)
@@ -122,6 +127,7 @@ async def callback(request: Request, code: str = None, state: str = None, error:
     request.session["credentials"] = _creds_to_dict(creds)
     request.session.pop("oauth_state", None)
     request.session.pop("oauth_redirect_uri", None)
+    request.session.pop("oauth_code_verifier", None)
 
     return RedirectResponse("/")
 
