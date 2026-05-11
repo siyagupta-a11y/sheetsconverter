@@ -2,15 +2,25 @@ import io
 
 from formula_converter import convert_formula
 
+try:
+    from openpyxl.worksheet.formula import ArrayFormula
+except Exception:  # pragma: no cover - openpyxl may be unavailable in some test envs
+    ArrayFormula = None
+
 
 def _extract_formula(value: str):
     """
     Return (formula, kind) where formula starts with '=' and kind is:
     - 'normal' for =...
-    - 'array' for {=...}
+    - 'array' for {=...} string form
+    - ('array_obj', ref) for openpyxl ArrayFormula objects
     Returns (None, None) if value is not a recognized formula string.
     """
     if not isinstance(value, str):
+        if ArrayFormula is not None and isinstance(value, ArrayFormula):
+            text = (value.text or "").strip()
+            if text.startswith("="):
+                return text, ("array_obj", value.ref)
         return None, None
     s = value.strip()
     if s.startswith("="):
@@ -21,6 +31,12 @@ def _extract_formula(value: str):
 
 
 def _restore_formula(formula: str, kind: str):
+    if isinstance(kind, tuple) and len(kind) == 2 and kind[0] == "array_obj":
+        ref = kind[1]
+        if ArrayFormula is not None:
+            return ArrayFormula(ref, formula)
+        return formula
+
     # Never write brace-wrapped strings back into cell.value. Excel stores
     # formulas as "=..." and handles array semantics separately.
     # Writing "{=...}" as text can trigger #NAME? in output workbooks.

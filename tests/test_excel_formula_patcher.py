@@ -4,6 +4,7 @@ from pathlib import Path
 
 try:
     from openpyxl import Workbook, load_workbook
+    from openpyxl.worksheet.formula import ArrayFormula
     HAS_OPENPYXL = True
 except Exception:
     HAS_OPENPYXL = False
@@ -27,6 +28,17 @@ class ExcelFormulaHelpersTests(unittest.TestCase):
     def test_restore_formula(self):
         self.assertEqual(_restore_formula("=A1", "normal"), "=A1")
         self.assertEqual(_restore_formula("=A1", "array"), "=A1")
+
+    @unittest.skipUnless(HAS_OPENPYXL, "openpyxl not available in local test environment")
+    def test_extract_and_restore_array_formula_object(self):
+        af = ArrayFormula("C1:C2", "=IF(1,2,3)")
+        formula, kind = _extract_formula(af)
+        self.assertEqual(formula, "=IF(1,2,3)")
+        self.assertEqual(kind, ("array_obj", "C1:C2"))
+
+        restored = _restore_formula("=IF(1,9,3)", kind)
+        self.assertEqual(restored.ref, "C1:C2")
+        self.assertEqual(restored.text, "=IF(1,9,3)")
 
 
 @unittest.skipUnless(HAS_OPENPYXL, "openpyxl not available in local test environment")
