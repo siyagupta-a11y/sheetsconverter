@@ -3,6 +3,29 @@ import io
 from formula_converter import convert_formula
 
 
+def _extract_formula(value: str):
+    """
+    Return (formula, kind) where formula starts with '=' and kind is:
+    - 'normal' for =...
+    - 'array' for {=...}
+    Returns (None, None) if value is not a recognized formula string.
+    """
+    if not isinstance(value, str):
+        return None, None
+    s = value.strip()
+    if s.startswith("="):
+        return s, "normal"
+    if s.startswith("{=") and s.endswith("}"):
+        return s[1:-1], "array"
+    return None, None
+
+
+def _restore_formula(formula: str, kind: str):
+    if kind == "array":
+        return "{" + formula + "}"
+    return formula
+
+
 def _write_notes_sheet(wb, warnings: list):
     from openpyxl.styles import Font
     from openpyxl.utils import get_column_letter
@@ -41,16 +64,17 @@ def patch_uploaded_workbook(xlsx_bytes: bytes) -> tuple[bytes, list]:
             continue
         for row in ws.iter_rows():
             for cell in row:
-                if not isinstance(cell.value, str) or not cell.value.startswith("="):
+                formula, kind = _extract_formula(cell.value)
+                if not formula:
                     continue
 
                 original = cell.value
-                res = convert_formula(original)
+                res = convert_formula(formula)
 
                 if res.formula == "":
                     cell.value = None
                 else:
-                    cell.value = res.formula
+                    cell.value = _restore_formula(res.formula, kind)
 
                 if res.warnings:
                     warnings.append(

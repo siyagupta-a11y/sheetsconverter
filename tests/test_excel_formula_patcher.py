@@ -11,6 +11,22 @@ except Exception:
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 
 from excel_formula_patcher import patch_uploaded_workbook
+from excel_formula_patcher import _extract_formula, _restore_formula
+
+
+class ExcelFormulaHelpersTests(unittest.TestCase):
+    def test_extract_formula_normal_and_array(self):
+        f, kind = _extract_formula("=SUM(A1:A3)")
+        self.assertEqual(f, "=SUM(A1:A3)")
+        self.assertEqual(kind, "normal")
+
+        f2, kind2 = _extract_formula("{=SUM(A1:A3)}")
+        self.assertEqual(f2, "=SUM(A1:A3)")
+        self.assertEqual(kind2, "array")
+
+    def test_restore_formula(self):
+        self.assertEqual(_restore_formula("=A1", "normal"), "=A1")
+        self.assertEqual(_restore_formula("=A1", "array"), "{=A1}")
 
 
 @unittest.skipUnless(HAS_OPENPYXL, "openpyxl not available in local test environment")
