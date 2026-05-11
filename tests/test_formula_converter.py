@@ -25,15 +25,15 @@ class FormulaConverterTests(unittest.TestCase):
         self.assertEqual(res.warnings, [])
         self.assertFalse(res.has_unsupported)
 
-    def test_index_missing_row_becomes_zero(self):
+    def test_index_missing_row_is_preserved(self):
         res = convert_formula("=INDEX(A:C,,2)")
-        self.assertEqual(res.formula, "=INDEX(A:C, 0, 2)")
-        self.assertIn("INDEX: filled omitted row/column with 0", " | ".join(res.warnings))
+        self.assertEqual(res.formula, "=INDEX(A:C,,2)")
+        self.assertIn("INDEX: omitted row argument detected", " | ".join(res.warnings))
 
-    def test_index_missing_column_becomes_zero(self):
+    def test_index_missing_column_is_preserved(self):
         res = convert_formula("=INDEX(A:C,4,)")
-        self.assertEqual(res.formula, "=INDEX(A:C, 4, 0)")
-        self.assertIn("INDEX: filled omitted row/column with 0", " | ".join(res.warnings))
+        self.assertEqual(res.formula, "=INDEX(A:C,4,)")
+        self.assertIn("INDEX: omitted column argument detected", " | ".join(res.warnings))
 
     def test_filter_single_condition_adds_if_empty_na(self):
         res = convert_formula("=FILTER(A2:A10,B2:B10>0)")

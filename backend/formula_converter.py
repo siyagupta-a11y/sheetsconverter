@@ -584,63 +584,33 @@ def _convert_iferror(formula: str) -> tuple:
 
 def _convert_index_defaults(formula: str) -> tuple:
     """
-    Google Sheets INDEX(reference, [row], [column]) defaults omitted row/column to 0.
-    Excel requires explicit 0 placeholders in omitted-position cases.
+    Preserve INDEX argument shape to avoid semantic drift in financial models.
+    Older behavior rewrote omitted row/column to explicit 0, which can introduce
+    #REF! / spill behavior changes depending on workbook layout and engine rules.
+    We now keep formulas unchanged and only emit a compatibility warning for
+    explicitly omitted-position cases (",," or trailing comma).
     """
     warnings = []
     pattern = re.compile(r'\bINDEX\s*\(', re.IGNORECASE)
     if not pattern.search(formula):
         return formula, warnings
 
-    parts = []
-    pos = 0
     for m in pattern.finditer(formula):
-        parts.append(formula[pos:m.start()])
         open_p = m.end() - 1
         close_p = _find_matching_paren(formula, open_p)
-
         if close_p == -1:
-            parts.append(formula[m.start():])
-            pos = len(formula)
             continue
-
         args = _split_top_level_args(formula, open_p)
-        if len(args) >= 3:
-            ref = args[0].strip()
-            row_arg = args[1].strip()
-            col_arg = args[2].strip()
-            changed = False
+        if len(args) >= 2 and args[1].strip() == '':
+            warnings.append(
+                "INDEX: omitted row argument detected; kept unchanged to preserve Sheets behavior"
+            )
+        if len(args) >= 3 and args[2].strip() == '':
+            warnings.append(
+                "INDEX: omitted column argument detected; kept unchanged to preserve Sheets behavior"
+            )
 
-            if row_arg == '':
-                row_arg = '0'
-                changed = True
-            if col_arg == '':
-                col_arg = '0'
-                changed = True
-
-            if changed:
-                rebuilt = [ref, row_arg, col_arg]
-                if len(args) > 3:
-                    rebuilt.extend(a.strip() for a in args[3:])
-                parts.append(f'INDEX({", ".join(rebuilt)})')
-                warnings.append("INDEX: filled omitted row/column with 0 for Excel compatibility")
-            else:
-                parts.append(formula[m.start():close_p + 1])
-        elif len(args) == 2:
-            ref = args[0].strip()
-            row_arg = args[1].strip()
-            if row_arg == '':
-                parts.append(f'INDEX({ref}, 0)')
-                warnings.append("INDEX: filled omitted row with 0 for Excel compatibility")
-            else:
-                parts.append(formula[m.start():close_p + 1])
-        else:
-            parts.append(formula[m.start():close_p + 1])
-
-        pos = close_p + 1
-
-    parts.append(formula[pos:])
-    return ''.join(parts), warnings
+    return formula, warnings
 
 
 def _warn_lookup_defaults(formula: str) -> tuple:
